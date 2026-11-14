@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Glass Morphism Digital Clock</title>
+<style>
+:root{
+  --bg1:#1b1340; --bg2:#0e7c86; --bg3:#ff7a59;
+  --glass:rgba(255,255,255,.14); --edge:rgba(255,255,255,.35);
+  --text:#fff; --muted:rgba(255,255,255,.75); --hand:#fff; --sec:#ffd166;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --bg1:#8fb8ff; --bg2:#c7a6ff; --bg3:#ffc2a1; --glass:rgba(255,255,255,.35); --edge:rgba(255,255,255,.7); --text:#1d1a3a; --muted:rgba(29,26,58,.7); --hand:#1d1a3a; --sec:#e5484d; }
+}
+:root[data-theme="dark"]{ --bg1:#1b1340; --bg2:#0e7c86; --bg3:#ff7a59; --glass:rgba(255,255,255,.14); --edge:rgba(255,255,255,.35); --text:#fff; --muted:rgba(255,255,255,.75); --hand:#fff; --sec:#ffd166; }
+:root[data-theme="light"]{ --bg1:#8fb8ff; --bg2:#c7a6ff; --bg3:#ffc2a1; --glass:rgba(255,255,255,.35); --edge:rgba(255,255,255,.7); --text:#1d1a3a; --muted:rgba(29,26,58,.7); --hand:#1d1a3a; --sec:#e5484d; }
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{
+  font-family:"Space Grotesk","Segoe UI",system-ui,sans-serif;color:var(--text);
+  background:linear-gradient(135deg,var(--bg1),var(--bg2) 55%,var(--bg3));
+  display:grid;place-items:center;padding:20px;overflow-x:hidden;position:relative;
+}
+.blob{position:fixed;border-radius:50%;filter:blur(50px);opacity:.7;z-index:0}
+.b1{width:260px;height:260px;background:var(--bg3);top:8%;left:-60px}
+.b2{width:320px;height:320px;background:var(--bg2);bottom:5%;right:-80px}
+.b3{width:180px;height:180px;background:#a78bfa;top:55%;left:30%}
+main{
+  position:relative;z-index:1;width:100%;max-width:440px;padding:28px 24px;border-radius:28px;
+  background:var(--glass);border:1px solid var(--edge);
+  -webkit-backdrop-filter:blur(22px) saturate(160%);backdrop-filter:blur(22px) saturate(160%);
+  box-shadow:0 20px 50px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.4);
+  display:flex;flex-direction:column;align-items:center;gap:22px;
+}
+.analog{
+  width:min(62vw,240px);aspect-ratio:1;border-radius:50%;position:relative;
+  background:rgba(255,255,255,.08);border:1px solid var(--edge);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  box-shadow:inset 0 0 30px rgba(255,255,255,.12);
+}
+.tick{position:absolute;left:50%;top:0;width:2px;height:100%;transform:translateX(-50%) rotate(var(--r))}
+.tick::before{content:"";position:absolute;top:6px;left:0;width:2px;height:8px;background:var(--muted);border-radius:2px}
+.hand{position:absolute;left:50%;bottom:50%;transform-origin:50% 100%;border-radius:4px;background:var(--hand)}
+#h{width:5px;height:26%;margin-left:-2.5px}
+#m{width:3px;height:38%;margin-left:-1.5px}
+#s{width:2px;height:42%;margin-left:-1px;background:var(--sec)}
+.pin{position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:var(--sec)}
+.digital{text-align:center}
+#time{font-size:clamp(2.6rem,13vw,3.8rem);font-weight:700;letter-spacing:.02em;font-variant-numeric:tabular-nums;line-height:1}
+#ampm{font-size:1.1rem;font-weight:500;margin-left:6px;color:var(--muted)}
+#date{margin-top:10px;color:var(--muted);font-size:1rem}
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+button{
+  font:inherit;color:var(--text);cursor:pointer;padding:10px 18px;border-radius:999px;
+  background:var(--glass);border:1px solid var(--edge);
+  -webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .15s, background .15s;
+}
+button:hover{background:rgba(255,255,255,.28)}
+button:active{transform:scale(.96)}
+button:focus-visible{outline:2px solid var(--sec);outline-offset:3px}
+@media (prefers-reduced-motion: reduce){ button{transition:none} }
+</style>
+</head>
+<body>
+<div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div>
+<main>
+  <div class="analog" id="analog" aria-hidden="true">
+    <div class="hand" id="h"></div><div class="hand" id="m"></div><div class="hand" id="s"></div><div class="pin"></div>
+  </div>
+  <div class="digital" role="timer" aria-live="off">
+    <div><span id="time">--:--:--</span><span id="ampm"></span></div>
+    <div id="date"></div>
+  </div>
+  <div class="controls">
+    <button id="fmt" type="button">Switch to 24-hour</button>
+    <button id="theme" type="button">Switch theme</button>
+  </div>
+</main>
+<script>
+(function(){
+  var is24=false, themeSet=null;
+  var analog=document.getElementById('analog');
+  for(var i=0;i<12;i++){var t=document.createElement('div');t.className='tick';t.style.setProperty('--r',(i*30)+'deg');analog.insertBefore(t,analog.firstChild);}
+  var $=function(id){return document.getElementById(id)};
+  var p=function(n){return String(n).padStart(2,'0')};
+  function tick(){
+    var d=new Date(), h=d.getHours(), m=d.getMinutes(), s=d.getSeconds(), ms=d.getMilliseconds();
+    var hh=h, suffix='';
+    if(!is24){suffix=h>=12?'PM':'AM';hh=h%12||12;}
+    $('time').textContent=p(hh)+':'+p(m)+':'+p(s);
+    $('ampm').textContent=suffix;
+    $('date').textContent=d.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+    var sd=(s+ms/1000)*6, md=(m+s/60)*6, hd=((h%12)+m/60)*30;
+    $('s').style.transform='rotate('+sd+'deg)';
+    $('m').style.transform='rotate('+md+'deg)';
+    $('h').style.transform='rotate('+hd+'deg)';
+    requestAnimationFrame(tick);
+  }
+  tick();
+  $('fmt').addEventListener('click',function(){
+    is24=!is24; this.textContent=is24?'Switch to 12-hour':'Switch to 24-hour';
+    try{localStorage.setItem('clock24',is24?'1':'0')}catch(e){}
+  });
+  $('theme').addEventListener('click',function(){
+    var cur=document.documentElement.getAttribute('data-theme');
+    var isLight=cur?cur==='light':window.matchMedia('(prefers-color-scheme: light)').matches;
+    document.documentElement.setAttribute('data-theme',isLight?'dark':'light');
+  });
+  try{ if(localStorage.getItem('clock24')==='1'){is24=true;$('fmt').textContent='Switch to 12-hour';} }catch(e){}
+})();
+</script>
+</body>
+</html>
